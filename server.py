@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-print("aaaa")
-
 import asyncio
 
 import email.mime.application
@@ -12,17 +10,21 @@ import email.encoders
 
 import gnupg
 
-keyid="czochanski@gmail.com"
+import config
+
+
+gpg = gnupg.GPG(homedir=config.GPGHOME)
+
 
 def pgp_mime(message, recepients):
-    encrypted_content = gpg.encrypt(message.as_string(), recepients)
+    content = gpg.encrypt(message.as_string(), recepients)
 
-    enc = email.mime.application.MIMEApplication(
-            _data=str(encrypted_content),
+    encrypted = email.mime.application.MIMEApplication(
+            _data=str(content),
             _subtype='octet-stream; name="encrypted.asc"',
             _encoder=email.encoders.encode_7or8bit)
-    enc['Content-Description'] = 'OpenPGP encrypted message'
-    enc.set_charset('us-ascii')
+    encrypted['Content-Description'] = 'OpenPGP encrypted message'
+    encrypted.set_charset('us-ascii')
 
     control = email.mime.application.MIMEApplication(
             _data='Version: 1\n',
@@ -34,41 +36,38 @@ def pgp_mime(message, recepients):
             'encrypted',
             protocol='application/pgp-encrypted')
     encmsg.attach(control)
-    encmsg.attach(enc)
+    encmsg.attach(encrypted)
     encmsg['Content-Disposition'] = 'inline'
 
     return encmsg
 
-gpg = gnupg.GPG()
 
+class PigeonHandler:
 
-
-class ExampleHandler:
-    async def handle_RCPT(self, server, session, envelope, address, rcpt_options):
-        if not address.endswith('@example.com'):
+    async def handle_RCPT(self, server, session,
+                          envelope, address, rcpt_options):
+        if not address.endswith('@' + config.DOMAIN):
             return '550 not relaying to that domain'
         envelope.rcpt_tos.append(address)
         return '250 OK'
 
     async def handle_DATA(self, server, session, envelope):
-        message = email.mime.text.MIMEText(_text=envelope.content.decode('utf-8', errors='replace'))
-        encrypted_message = pgp_mime(message, keyid)
-        #print(encrypted_message)
-
-        #print('Message from %s' % envelope.mail_from)
-        #print('Message for %s' % envelope.rcpt_tos)
-        #print('Message data:\n')
-        #print(envelope.content.decode('utf8', errors='replace'))
-        #print('End of message')
+        message = email.mime.text.MIMEText(
+                _text=envelope.content.decode('utf-8', errors='replace'))
+        # TODO can len(rcpt_tos) > 1?
+        fingerprints = map(
+                lambda a: config.USERS[a.split('@')[0]], envelope.rcpt_tos)
+        encrypted_message = pgp_mime(message, fingerprints)
+        # TODO send
         return '250 Message accepted for delivery'
 
+
 def main():
+    # TODO handle address and port
     from aiosmtpd.controller import Controller
     import asyncio
-    controller = Controller(ExampleHandler(), hostname='localhost', port=8025)
+    controller = Controller(PigeonHandler(), hostname='localhost', port=8025)
     controller.start()
-    print(controller.hostname)
-    print(controller.port)
     loop = asyncio.get_event_loop()
     loop.run_forever()
 
