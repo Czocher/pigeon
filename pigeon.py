@@ -4,6 +4,7 @@ import gnupg
 import argparse
 import config
 import sys
+import subprocess
 
 
 GPG = gnupg.GPG(homedir=config.GPGHOME)
@@ -37,27 +38,40 @@ def clean_cmd():
         GPG.delete_keys(fingerprint)
     print('Key database clean.', file=sys.stderr)
 
-def run_cmd():
-    pass  # TODO run pigeon
+
+def run_cmd(address, port):
+    # Restart the process on failure
+    while True:
+        p = subprocess.Popen(['python3', './server.py',
+            address or '0.0.0.0', port or '2525'],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        p.wait()
 
 
 def main():
     parser = argparse.ArgumentParser(prog='pigeon')
     subparsers = parser.add_subparsers()
 
-    # TODO add proper help messages
-    run_parser = subparsers.add_parser('run', help='run help')
+    run_parser = subparsers.add_parser('run',
+            help='run the pigeon smtp server')
+    run_parser.add_argument('port', nargs='?',
+            help='specify alternative port [default: 2525]')
+    run_parser.add_argument('--bind', dest='address',
+            help='specify alternative bind address [dafault: all interfaces]')
     run_parser.set_defaults(command='run')
 
-    check_parser = subparsers.add_parser('check', help='check help')
+    check_parser = subparsers.add_parser('check',
+            help='check the current configuration for mistakes')
     check_parser.set_defaults(command='check')
 
-    import_key_parser = subparsers.add_parser('importkey', help='import help')
+    import_key_parser = subparsers.add_parser('importkey',
+            help='import a given key to the key database')
     import_key_parser.add_argument('path',
                                    help='path to the keyfile to import')
     import_key_parser.set_defaults(command='importkey')
 
-    clean_parser = subparsers.add_parser('clean', help='clean help')
+    clean_parser = subparsers.add_parser('clean',
+            help='clean the database of unused keys')
     clean_parser.set_defaults(command='clean')
 
     args = parser.parse_args()
@@ -72,7 +86,8 @@ def main():
         if list_missing_keys():
             print('Some keys seem to be missing, run the \'check\' command.',
                   file=sys.stderr)
-        run_cmd()
+        else:
+            run_cmd(args.address, args.port)
 
 if __name__ == "__main__":
     main()
