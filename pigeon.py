@@ -27,7 +27,9 @@ def check_cmd():
 
 def import_key_cmd(path):
     with open(path, 'r') as keyfile:
-        GPG.import_keys(keyfile.read())
+        result = GPG.import_keys(keyfile.read())
+        print('Imported keys:\n{}'.format(
+            '\n'.join(result.fingerprints)))
 
 
 def clean_cmd():
@@ -76,7 +78,10 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == 'check':
+    if not hasattr(args, 'command'):
+        parser.print_usage()
+        return
+    elif args.command == 'check':
         check_cmd()
     elif args.command == 'importkey':
         import_key_cmd(args.path)

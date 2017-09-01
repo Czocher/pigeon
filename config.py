@@ -9,9 +9,9 @@ DOMAIN = 'example.com'
 # Pigeon will accept messages sent only to one of those addresses
 # and use only the selected keyfiles/fingerprints to do the encryption
 USERS = {
-    'exampleuser': {
-        'to': 'otheremail@example.com',
-        'fingerprint': 'DEADBEEF0987'
+    'czocher': {
+        'to': 'czochanski@gmail.com',
+#        'fingerprint': 'C00F912646F8908A3E9444D982843164B26A29FB'
     },
 }
 

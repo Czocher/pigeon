@@ -13,12 +13,11 @@ import gnupg
 import config
 
 
-gpg = gnupg.GPG(homedir=config.GPGHOME)
+gpg = gnupg.GPG(homedir=config.GPGHOME, verbose=True)
 
 
-def pgp_mime(message, recepients):
-    content = gpg.encrypt(message.as_string(), recepients)
-
+def pgp_mime(message, recipients):
+    content = gpg.encrypt(message.as_string(), *recipients)
     encrypted = MIMEApplication(
             _data=str(content),
             _subtype='octet-stream; name="encrypted.asc"',
@@ -52,13 +51,28 @@ class PigeonHandler:
     async def handle_DATA(self, server, session, envelope):
         message = MIMEText(
                 _text=envelope.content.decode('utf-8', errors='replace'))
-        # TODO can len(rcpt_tos) > 1?
-        fingerprints = map(
-                lambda a: config.USERS[a.split('@')[0]], envelope.rcpt_tos)
+        recipients = envelope.rcpt_tos
+
+        if not self._valid_recipients(recipients):
+            return '550 Unknown recipients'
+
+        try:
+            fingerprints = self._get_fingerprints(recipients)
+        except:
+            return '550 PGP key fingerprint not configured'
+
         encrypted_message = pgp_mime(message, fingerprints)
+        print(encrypted_message.as_string())
         # TODO send
         return '250 Message accepted for delivery'
 
+    def _valid_recipients(self, recipients):
+        func = lambda r: r.split('@')[0] in config.USERS.keys()
+        return all(map(func, recipients))
+
+    def _get_fingerprints(self, recipients):
+        func = lambda r: config.USERS[r.split('@')[0]]['fingerprint']
+        return list(map(func, recipients))
 
 def main():
     address, port = sys.argv[1:3]
