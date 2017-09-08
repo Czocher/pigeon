@@ -18,3 +18,12 @@ USERS = {
 # The GPG home directory used by Pigeon
 # defaults to the gpghome subdirectory in the Pigeon project directory
 GPGHOME = path.join(path.abspath(path.dirname(__file__)), 'gpghome')
+
+
+import logging
+# Logging configuration
+LOGGING = {
+    'filename': 'pigeon.log',
+    'level': logging.DEBUG,
+    'format': logging.BASIC_FORMAT
+}

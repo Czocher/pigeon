@@ -11,12 +11,18 @@ import asyncio
 import sys
 import gnupg
 import config
+import logging
+
+
+logging.basicConfig(filename=config.LOGGING['filename'],
+        level=config.LOGGING['level'], format=config.LOGGING['format'])
 
 
 gpg = gnupg.GPG(homedir=config.GPGHOME, verbose=True)
 
 
 def pgp_mime(message, recipients):
+    logging.info('Encrypting message')
     content = gpg.encrypt(message.as_string(), *recipients)
     encrypted = MIMEApplication(
             _data=str(content),
@@ -43,28 +49,40 @@ class PigeonHandler:
 
     async def handle_RCPT(self, server, session,
                           envelope, address, rcpt_options):
+        logging.info(f'RCPT request for {address}')
+
         if not address.endswith('@' + config.DOMAIN):
+            logging.error(f'Unknown domain')
             return '550 not relaying to that domain'
 
-        if not address.split('@')[0] in config.USERS.keys():
-            return '550 unknown recipients'
+        user = address.split('@')[0]
+        if user not in config.USERS:
+            logging.error('Unknown recipient')
+            return '550 unknown recipient'
+
+        if 'fingerprint' not in config.USERS[user]:
+            logging.error('No PGP key configured')
+            return '550 PGP key fingerprint not configured'
 
         envelope.rcpt_tos.append(address)
+        logging.info('Recipient ok, continuing')
         return '250 OK'
 
     async def handle_DATA(self, server, session, envelope):
         message = MIMEText(
                 _text=envelope.content.decode('utf-8', errors='replace'))
+
         recipients = envelope.rcpt_tos
+        fingerprints = self._get_fingerprints(recipients)
+        logging.info(f'Fingerprint prepared: {fingerprints}')
 
-        try:
-            fingerprints = self._get_fingerprints(recipients)
-        except:
-            return '550 PGP key fingerprint not configured'
-
+        # TODO check if encryption required
         encrypted_message = pgp_mime(message, fingerprints)
+
         print(encrypted_message.as_string())
+        logging.info('Message encrypted and prepared for resend')
         # TODO send
+        logging.info('Message sent to recipient')
         return '250 Message accepted for delivery'
 
     def _get_fingerprints(self, recipients):
