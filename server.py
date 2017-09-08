@@ -45,6 +45,10 @@ class PigeonHandler:
                           envelope, address, rcpt_options):
         if not address.endswith('@' + config.DOMAIN):
             return '550 not relaying to that domain'
+
+        if not address.split('@')[0] in config.USERS.keys():
+            return '550 unknown recipients'
+
         envelope.rcpt_tos.append(address)
         return '250 OK'
 
@@ -52,9 +56,6 @@ class PigeonHandler:
         message = MIMEText(
                 _text=envelope.content.decode('utf-8', errors='replace'))
         recipients = envelope.rcpt_tos
-
-        if not self._valid_recipients(recipients):
-            return '550 Unknown recipients'
 
         try:
             fingerprints = self._get_fingerprints(recipients)
@@ -65,10 +66,6 @@ class PigeonHandler:
         print(encrypted_message.as_string())
         # TODO send
         return '250 Message accepted for delivery'
-
-    def _valid_recipients(self, recipients):
-        func = lambda r: r.split('@')[0] in config.USERS.keys()
-        return all(map(func, recipients))
 
     def _get_fingerprints(self, recipients):
         func = lambda r: config.USERS[r.split('@')[0]]['fingerprint']
