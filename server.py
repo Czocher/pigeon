@@ -7,6 +7,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.encoders import encode_7or8bit
 
+from smtplib import SMTP as Client
+
 import asyncio
 import sys
 import gnupg
@@ -52,16 +54,16 @@ class PigeonHandler:
         logging.info(f'RCPT request for {address}')
 
         if not address.endswith('@' + config.DOMAIN):
-            logging.error(f'Unknown domain')
+            logging.error(f'Unknown domain {address}')
             return '550 not relaying to that domain'
 
         user = address.split('@')[0]
         if user not in config.USERS:
-            logging.error('Unknown recipient')
+            logging.error(f'Unknown recipient {user}')
             return '550 unknown recipient'
 
         if 'fingerprint' not in config.USERS[user]:
-            logging.error('No PGP key configured')
+            logging.error(f'No PGP key configured for {user}')
             return '550 PGP key fingerprint not configured'
 
         envelope.rcpt_tos.append(address)
@@ -78,10 +80,15 @@ class PigeonHandler:
 
         # TODO check if encryption required
         encrypted_message = pgp_mime(message, fingerprints)
+        encrypted_message['Subject'] = '?????'
+        encrypted_message['From'] = envelope.mail_from
+        encrypted_message['To'] = ', '.join(envelope.rcpt_tos)
 
-        print(encrypted_message.as_string())
         logging.info('Message encrypted and prepared for resend')
         # TODO send
+        #client = Client('localhost', 2525)
+        #r = client.sendmail(, ['czocher@example.com'])
+
         logging.info('Message sent to recipient')
         return '250 Message accepted for delivery'
 
